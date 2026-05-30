@@ -1,113 +1,161 @@
 /**
- * Simple file-based data store.
- * Reads/writes JSON files from the data/ directory.
- * In production this would be replaced by Box API calls.
+ * Data store — reads/writes via Box when credentials are present,
+ * falls back to local JSON files otherwise.
+ *
+ * All functions are async-safe: callers can await them or use
+ * the sync local fallback transparently.
  */
 
 const fs = require("fs");
 const path = require("path");
 
 const DATA_DIR = path.join(__dirname, "../data");
+const USE_BOX = !!(
+  process.env.BOX_CLIENT_ID &&
+  process.env.BOX_CLIENT_SECRET &&
+  process.env.BOX_ENTERPRISE_ID
+);
 
-function readJSON(filename) {
-  const filePath = path.join(DATA_DIR, filename);
-  if (!fs.existsSync(filePath)) return [];
-  const raw = fs.readFileSync(filePath, "utf-8");
-  return JSON.parse(raw);
+// Lazy-load box to avoid crashing when creds aren't set
+let box = null;
+function getBox() {
+  if (!box) box = require("./box");
+  return box;
 }
 
-function writeJSON(filename, data) {
+// ── Local file helpers (fallback) ─────────────────────────────────────────────
+
+function readLocalJSON(filename) {
+  const filePath = path.join(DATA_DIR, filename);
+  if (!fs.existsSync(filePath)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalJSON(filename, data) {
   const filePath = path.join(DATA_DIR, filename);
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
 }
 
-// --- People ---
-function getPeople() {
-  return readJSON("people.json");
-}
+// ── Unified read/write ────────────────────────────────────────────────────────
 
-function getPersonById(id) {
-  return getPeople().find((p) => p.id === id) || null;
-}
-
-function savePerson(person) {
-  const people = getPeople();
-  const idx = people.findIndex((p) => p.id === person.id);
-  if (idx >= 0) {
-    people[idx] = person;
-  } else {
-    people.push(person);
+async function read(filename, defaultValue = []) {
+  if (USE_BOX) {
+    try {
+      return await getBox().readJSON(filename, defaultValue);
+    } catch (err) {
+      console.warn(`[dataStore] Box read failed for ${filename}, using local:`, err.message);
+      return readLocalJSON(filename);
+    }
   }
-  writeJSON("people.json", people);
+  return readLocalJSON(filename);
+}
+
+async function write(filename, data) {
+  // Always write locally as a cache/backup
+  writeLocalJSON(filename, data);
+
+  if (USE_BOX) {
+    try {
+      await getBox().writeJSON(filename, data);
+    } catch (err) {
+      console.warn(`[dataStore] Box write failed for ${filename}:`, err.message);
+    }
+  }
+}
+
+// ── People ────────────────────────────────────────────────────────────────────
+
+async function getPeople() {
+  return read("people.json", []);
+}
+
+async function getPersonById(id) {
+  const people = await getPeople();
+  return people.find((p) => p.id === id) || null;
+}
+
+async function savePerson(person) {
+  const people = await getPeople();
+  const idx = people.findIndex((p) => p.id === person.id);
+  if (idx >= 0) people[idx] = person;
+  else people.push(person);
+  await write("people.json", people);
   return person;
 }
 
-// --- Memories ---
-function getMemories() {
-  return readJSON("memories.json");
+// ── Memories ──────────────────────────────────────────────────────────────────
+
+async function getMemories() {
+  return read("memories.json", []);
 }
 
-function getMemoriesByPersonId(personId) {
-  return getMemories().filter((m) => m.person_id === personId);
+async function getMemoriesByPersonId(personId) {
+  const memories = await getMemories();
+  return memories.filter((m) => m.person_id === personId);
 }
 
-function saveMemory(memory) {
-  const memories = getMemories();
+async function saveMemory(memory) {
+  const memories = await getMemories();
   memories.push(memory);
-  writeJSON("memories.json", memories);
+  await write("memories.json", memories);
   return memory;
 }
 
-// --- Events ---
-function getPublicEvents() {
-  return readJSON("public_events.json");
+// ── Public Events ─────────────────────────────────────────────────────────────
+
+async function getPublicEvents() {
+  return read("public_events.json", []);
 }
 
-function savePublicEvents(events) {
-  writeJSON("public_events.json", events);
+async function savePublicEvents(events) {
+  await write("public_events.json", events);
 }
 
-// --- Opportunity Cards ---
-function getOpportunityCards() {
-  return readJSON("opportunity_cards.json");
+// ── Opportunity Cards ─────────────────────────────────────────────────────────
+
+async function getOpportunityCards() {
+  return read("opportunity_cards.json", []);
 }
 
-function saveOpportunityCard(card) {
-  const cards = getOpportunityCards();
+async function saveOpportunityCard(card) {
+  const cards = await getOpportunityCards();
   const idx = cards.findIndex((c) => c.card_id === card.card_id);
-  if (idx >= 0) {
-    cards[idx] = card;
-  } else {
-    cards.push(card);
-  }
-  writeJSON("opportunity_cards.json", cards);
+  if (idx >= 0) cards[idx] = card;
+  else cards.push(card);
+  await write("opportunity_cards.json", cards);
   return card;
 }
 
-function updateCardStatus(cardId, status) {
-  const cards = getOpportunityCards();
+async function updateCardStatus(cardId, status) {
+  const cards = await getOpportunityCards();
   const idx = cards.findIndex((c) => c.card_id === cardId);
   if (idx >= 0) {
     cards[idx].status = status;
-    writeJSON("opportunity_cards.json", cards);
+    await write("opportunity_cards.json", cards);
     return cards[idx];
   }
   return null;
 }
 
-// --- Sent Messages ---
-function getSentMessages() {
-  return readJSON("sent_messages.json");
+// ── Sent Messages ─────────────────────────────────────────────────────────────
+
+async function getSentMessages() {
+  return read("sent_messages.json", []);
 }
 
-function saveSentMessage(msg) {
-  const messages = getSentMessages();
+async function saveSentMessage(msg) {
+  const messages = await getSentMessages();
   messages.push(msg);
-  writeJSON("sent_messages.json", messages);
+  await write("sent_messages.json", messages);
   return msg;
 }
 
 module.exports = {
+  USE_BOX,
   getPeople,
   getPersonById,
   savePerson,

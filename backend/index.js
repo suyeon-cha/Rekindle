@@ -15,6 +15,7 @@ app.use("/people", require("./routes/people"));
 app.use("/events", require("./routes/events"));
 app.use("/add-memory", require("./routes/memory"));
 app.use("/generate-opportunities", require("./routes/opportunities"));
+app.use("/ingest", require("./routes/ingest"));
 app.use("/", require("./routes/actions")); // /mark-sent and /update-status
 
 // 404 handler
@@ -35,6 +36,7 @@ app.listen(PORT, () => {
   console.log(`   GET  /events`);
   console.log(`   POST /add-memory`);
   console.log(`   POST /generate-opportunities`);
+  console.log(`   POST /ingest/{people,events,memories}`);
   console.log(`   POST /mark-sent`);
   console.log(`   POST /update-status\n`);
 });

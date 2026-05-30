@@ -2,19 +2,26 @@ const express = require("express");
 const router = express.Router();
 const { getPeople, getPersonById, getMemoriesByPersonId } = require("../lib/dataStore");
 
-// GET /people — list all people
-router.get("/", (req, res) => {
-  const people = getPeople();
-  res.json({ people });
+// GET /people
+router.get("/", async (req, res) => {
+  try {
+    const people = await getPeople();
+    res.json({ people });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// GET /people/:id — get a single person with their memories
-router.get("/:id", (req, res) => {
-  const person = getPersonById(req.params.id);
-  if (!person) return res.status(404).json({ error: "Person not found" });
-
-  const memories = getMemoriesByPersonId(req.params.id);
-  res.json({ person, memories });
+// GET /people/:id
+router.get("/:id", async (req, res) => {
+  try {
+    const person = await getPersonById(req.params.id);
+    if (!person) return res.status(404).json({ error: "Person not found" });
+    const memories = await getMemoriesByPersonId(req.params.id);
+    res.json({ person, memories });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;
