@@ -1,0 +1,47 @@
+[
+  {
+    "memory_id": "mem_001",
+    "person_id": "person_robert",
+    "raw_note": "Robert from CascadiaJS. Loves tennis, into AI, likes hackathons, building an AI map tool. I want to stay in touch.",
+    "extracted": {
+      "topics": ["tennis", "AI", "hackathons"],
+      "projects": ["AI map tool"],
+      "relationship_context": "Met at CascadiaJS conference",
+      "possible_future_reasons": ["AI events", "tennis", "hackathons", "startup meetups"],
+      "priority": "high",
+      "vibe_preferences": ["casual", "builder", "low-pressure"],
+      "summary": "Robert likes tennis, AI, and hackathons. He is building an AI map tool."
+    },
+    "created_at": "2026-05-01T10:00:00Z"
+  },
+  {
+    "memory_id": "mem_002",
+    "person_id": "person_anne",
+    "raw_note": "Met Anne at the hackathon, she's building an AI tutor for kids. Really impressive work. Want to follow up on how it's going.",
+    "extracted": {
+      "topics": ["AI", "education", "kids tech"],
+      "projects": ["AI tutor for kids"],
+      "relationship_context": "Met at Cascadia AI Hackathon",
+      "possible_future_reasons": ["AI events", "education tech meetups", "product demos"],
+      "priority": "high",
+      "vibe_preferences": ["warm", "creative"],
+      "summary": "Anne is building an AI tutor for kids. Met at the hackathon."
+    },
+    "created_at": "2026-05-15T14:00:00Z"
+  },
+  {
+    "memory_id": "mem_003",
+    "person_id": "person_sarah",
+    "raw_note": "Sarah from the Tech Mixer. Works in product, loves community events and design. Should grab coffee sometime.",
+    "extracted": {
+      "topics": ["product", "design", "community"],
+      "projects": [],
+      "relationship_context": "Met at Tech Mixer event",
+      "possible_future_reasons": ["community events", "design meetups", "coffee"],
+      "priority": "medium",
+      "vibe_preferences": ["casual", "social"],
+      "summary": "Sarah works in product. Into design and community events."
+    },
+    "created_at": "2026-04-20T09:00:00Z"
+  }
+]

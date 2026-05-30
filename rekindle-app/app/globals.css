@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0f0f13;
+  --foreground: #f0ede8;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Smooth card swipe animations */
+@keyframes slideInUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.animate-slide-up { animation: slideInUp 0.35s ease both; }
+.animate-fade-in  { animation: fadeIn 0.25s ease both; }

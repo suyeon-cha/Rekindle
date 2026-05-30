@@ -1,0 +1,44 @@
+[
+  {
+    "id": "person_robert",
+    "name": "Robert",
+    "location": "Seattle",
+    "where_met": "CascadiaJS",
+    "summary": "Robert likes tennis, AI, and hackathons. He is building an AI map tool.",
+    "interests": ["tennis", "AI", "hackathons", "startups"],
+    "projects": ["AI map tool"],
+    "contact_methods": ["LinkedIn", "Email"],
+    "priority": "high",
+    "relationship_goal": "stay in touch, collaborate on AI projects",
+    "vibe_preferences": ["casual", "low-pressure", "builder"],
+    "last_interaction": "2026-05-01"
+  },
+  {
+    "id": "person_anne",
+    "name": "Anne",
+    "location": "New York",
+    "where_met": "Cascadia AI Hackathon",
+    "summary": "Anne is building an AI tutor for kids. Met at the hackathon.",
+    "interests": ["AI", "education", "kids tech", "product"],
+    "projects": ["AI tutor for kids"],
+    "contact_methods": ["Instagram", "LinkedIn"],
+    "priority": "high",
+    "relationship_goal": "follow up on AI tutor progress",
+    "vibe_preferences": ["warm", "creative"],
+    "last_interaction": "2026-05-15"
+  },
+  {
+    "id": "person_sarah",
+    "name": "Sarah",
+    "location": "Seattle",
+    "where_met": "Tech Mixer",
+    "summary": "Sarah works in product at a Seattle startup. Into design and community events.",
+    "interests": ["product", "design", "community", "tech events"],
+    "projects": [],
+    "contact_methods": ["Instagram", "Messages"],
+    "priority": "medium",
+    "relationship_goal": "grab coffee, attend events together",
+    "vibe_preferences": ["casual", "social"],
+    "last_interaction": "2026-04-20"
+  }
+]
