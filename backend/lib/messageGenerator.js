@@ -1,13 +1,13 @@
 /**
  * Message generation.
- * Uses OpenAI if OPENAI_API_KEY is set, otherwise falls back to a template.
+ * Uses Claude (Anthropic) if ANTHROPIC_API_KEY is set, otherwise falls back to a template.
  */
 
-const OpenAI = require("openai");
+const Anthropic = require("@anthropic-ai/sdk");
 
-let openai = null;
-if (process.env.OPENAI_API_KEY) {
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let anthropic = null;
+if (process.env.ANTHROPIC_API_KEY) {
+  anthropic = new Anthropic.default({ apiKey: process.env.ANTHROPIC_API_KEY });
 }
 
 /**
@@ -20,40 +20,40 @@ async function generateMessage({ person, memory, event, activity, mode }) {
   const eventDate = event?.date ? ` on ${event.date}` : "";
   const eventCity = event?.city ? ` in ${event.city}` : "";
 
-  if (openai) {
+  if (anthropic) {
     try {
-      const prompt = `
-You are writing a short, warm, casual reconnection message from Maya to ${person.name}.
+      const prompt = `You are helping Maya reconnect with ${person.name}.
 
 Context about ${person.name}: "${memorySnippet}"
+Where they met: "${person.where_met || "unknown"}"
+${person.interests?.length ? `Interests: ${person.interests.join(", ")}` : ""}
 Suggested plan: ${eventTitle}${eventDate}${eventCity}
 Mode: ${mode}
 
-Requirements:
-- Warm, casual, specific, low-pressure
-- Under 75 words
-- No corporate tone
-- Reference the memory naturally (don't make it feel like a CRM)
-- End with a soft invite, not a demand
+Return a JSON object with exactly these two fields:
+{
+  "message": "A warm, casual, specific, low-pressure reconnection message. Under 75 words. No corporate tone. Reference the memory naturally. End with a soft invite.",
+  "why": "1-2 sentences explaining why NOW is a good moment to reach out to this specific person for this specific plan. Be concrete — mention what you know about them and what makes this a natural fit. Not generic. Sound like a thoughtful friend, not an algorithm."
+}
 
-Return ONLY the message text, no quotes, no JSON.
-`.trim();
+Return ONLY valid JSON. No extra text.`;
 
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 400,
         messages: [{ role: "user", content: prompt }],
-        max_tokens: 150,
-        temperature: 0.8,
       });
 
-      return response.choices[0].message.content.trim();
+      const raw = response.content[0].text.trim().replace(/^```json\n?|^```\n?|\n?```$/g, "");
+      const parsed = JSON.parse(raw);
+      return { message: parsed.message, why: parsed.why };
     } catch (err) {
-      console.error("OpenAI error, falling back to template:", err.message);
+      console.error("Claude API error, falling back to template:", err.message);
     }
   }
 
   // Fallback template messages by mode
-  return generateTemplateMessage({ person, memory, event, activity, mode });
+  return { message: generateTemplateMessage({ person, memory, event, activity, mode }), why: null };
 }
 
 function generateTemplateMessage({ person, memory, event, activity, mode }) {
@@ -96,4 +96,52 @@ function formatDate(dateStr) {
   }
 }
 
-module.exports = { generateMessage };
+/**
+ * Extract normalized topics from a natural-language intent string.
+ * Uses Claude when available; falls back to keyword matching.
+ */
+async function extractTopicsFromIntent(intent = "") {
+  if (!intent.trim()) return [];
+
+  if (anthropic) {
+    try {
+      const response = await anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 100,
+        messages: [
+          {
+            role: "user",
+            content: `Extract the core interest/activity topics from this intent: "${intent}"
+
+Return a JSON array of short lowercase topic strings (e.g. ["cooking", "food", "jazz"]).
+Include synonyms and related topics that someone with this interest would also care about.
+Return ONLY the JSON array, nothing else.`,
+          },
+        ],
+      });
+
+      const raw = response.content[0].text.trim().replace(/^```json\n?|^```\n?|\n?```$/g, "");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (err) {
+      console.error("Topic extraction error, using fallback:", err.message);
+    }
+  }
+
+  // Fallback keyword list
+  const TOPIC_KEYWORDS = [
+    "tennis", "ai", "artificial intelligence", "machine learning",
+    "hackathon", "startup", "startups", "founders", "education",
+    "edtech", "kids", "design", "product", "community", "art",
+    "music", "food", "cooking", "culinary", "fitness", "sports",
+    "tech", "networking", "builders", "market", "creative",
+    "books", "reading", "jazz", "running", "hiking", "cycling",
+    "coffee", "pottery", "ceramics", "concerts", "vinyl", "manga",
+    "photography", "yoga", "climbing", "dance", "film", "gaming",
+  ];
+
+  const lower = intent.toLowerCase();
+  return TOPIC_KEYWORDS.filter((kw) => lower.includes(kw));
+}
+
+module.exports = { generateMessage, extractTopicsFromIntent };

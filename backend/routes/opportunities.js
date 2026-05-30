@@ -11,9 +11,8 @@ const {
 const {
   scorePersonForIntent,
   scoreEventForPerson,
-  extractTopicsFromIntent,
 } = require("../lib/scoring");
-const { generateMessage } = require("../lib/messageGenerator");
+const { generateMessage, extractTopicsFromIntent } = require("../lib/messageGenerator");
 
 // POST /generate-opportunities
 // Supports modes: event_first | person_first | calendar_trigger | visit_mode
@@ -74,31 +73,20 @@ async function handlePersonFirst({ person_id, intent, user_id }) {
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
-  const cards = [];
-  for (const { event, score } of scoredEvents) {
-    const message = await generateMessage({
-      person,
-      memory,
-      event,
-      mode: "person_first",
-    });
-
-    cards.push(buildCard({
-      mode: "person_first",
-      person,
-      memory,
-      event,
-      message,
-      intent: intent || `I want to get closer to ${person.name}`,
-      confidence: Math.min(score / 100, 0.99),
-    }));
-  }
-
-  return cards;
+  return Promise.all(
+    scoredEvents.map(async ({ event, score }) => {
+      const { message, why } = await generateMessage({ person, memory, event, mode: "person_first" });
+      return buildCard({
+        mode: "person_first", person, memory, event, message, why,
+        intent: intent || `I want to get closer to ${person.name}`,
+        confidence: Math.min(score / 100, 0.99),
+      });
+    })
+  );
 }
 
 async function handleEventFirst({ intent, user_id }) {
-  const intentTopics = extractTopicsFromIntent(intent || "");
+  const intentTopics = await extractTopicsFromIntent(intent || "");
   const people = getPeople();
   const events = getPublicEvents();
 
@@ -109,46 +97,41 @@ async function handleEventFirst({ intent, user_id }) {
 
   const eventsToUse = matchingEvents.length > 0 ? matchingEvents : events.slice(0, 3);
 
-  const cards = [];
+  const seenPairs = new Set();
+  const pairs = [];
 
-  for (const event of eventsToUse.slice(0, 3)) {
-    // Find best person for this event
+  for (const event of eventsToUse.slice(0, 5)) {
     const scoredPeople = people
       .map((person) => {
         const memories = getMemoriesByPersonId(person.id);
         const memory = memories[0] || null;
         return {
-          person,
-          memory,
-          score:
-            scorePersonForIntent(person, memory, intentTopics) +
-            scoreEventForPerson(event, person, memory),
+          person, memory,
+          score: scorePersonForIntent(person, memory, intentTopics) +
+                 scoreEventForPerson(event, person, memory),
         };
       })
+      .filter(({ score }) => score >= 40)
       .sort((a, b) => b.score - a.score);
 
-    const best = scoredPeople[0];
-    if (!best) continue;
-
-    const message = await generateMessage({
-      person: best.person,
-      memory: best.memory,
-      event,
-      mode: "event_first",
-    });
-
-    cards.push(buildCard({
-      mode: "event_first",
-      person: best.person,
-      memory: best.memory,
-      event,
-      message,
-      intent: intent || "I want to go to an event",
-      confidence: Math.min(best.score / 100, 0.99),
-    }));
+    for (const { person, memory, score } of scoredPeople) {
+      const key = `${person.id}:${event.event_id}`;
+      if (seenPairs.has(key)) continue;
+      seenPairs.add(key);
+      pairs.push({ event, person, memory, score });
+    }
   }
 
-  return cards;
+  return Promise.all(
+    pairs.map(async ({ event, person, memory, score }) => {
+      const { message, why } = await generateMessage({ person, memory, event, mode: "event_first" });
+      return buildCard({
+        mode: "event_first", person, memory, event, message, why,
+        intent: intent || "I want to go to an event",
+        confidence: Math.min(score / 100, 0.99),
+      });
+    })
+  );
 }
 
 async function handleCalendarTrigger({ calendar_event, user_id }) {
@@ -156,7 +139,7 @@ async function handleCalendarTrigger({ calendar_event, user_id }) {
 
   const topics = [
     ...(calendar_event.topics || []),
-    ...extractTopicsFromIntent(calendar_event.title || ""),
+    ...(await extractTopicsFromIntent(calendar_event.title || "")),
   ];
 
   const people = getPeople();
@@ -175,39 +158,21 @@ async function handleCalendarTrigger({ calendar_event, user_id }) {
     .sort((a, b) => b.score - a.score)
     .slice(0, 2);
 
-  const cards = [];
-  for (const { person, memory, score } of scoredPeople) {
-    const message = await generateMessage({
-      person,
-      memory,
-      activity: calendar_event.title,
-      event: {
-        title: calendar_event.title,
-        date: calendar_event.date,
-        time: calendar_event.time,
-        city: calendar_event.city,
-      },
-      mode: "calendar_trigger",
-    });
-
-    cards.push(buildCard({
-      mode: "calendar_trigger",
-      person,
-      memory,
-      event: {
-        title: calendar_event.title,
-        date: calendar_event.date,
-        time: calendar_event.time,
-        city: calendar_event.city,
-        source: "Google Calendar",
-      },
-      message,
-      intent: `I'm already doing ${calendar_event.title}. Who should I invite?`,
-      confidence: Math.min(score / 100, 0.99),
-    }));
-  }
-
-  return cards;
+  return Promise.all(
+    scoredPeople.map(async ({ person, memory, score }) => {
+      const { message, why } = await generateMessage({
+        person, memory, activity: calendar_event.title,
+        event: { title: calendar_event.title, date: calendar_event.date, time: calendar_event.time, city: calendar_event.city },
+        mode: "calendar_trigger",
+      });
+      return buildCard({
+        mode: "calendar_trigger", person, memory, message, why,
+        event: { title: calendar_event.title, date: calendar_event.date, time: calendar_event.time, city: calendar_event.city, source: "Google Calendar" },
+        intent: `I'm already doing ${calendar_event.title}. Who should I invite?`,
+        confidence: Math.min(score / 100, 0.99),
+      });
+    })
+  );
 }
 
 async function handleVisitMode({ city, date_range, user_id }) {
@@ -226,46 +191,31 @@ async function handleVisitMode({ city, date_range, user_id }) {
     (e) => e.city?.toLowerCase() === city.toLowerCase()
   );
 
-  const cards = [];
+  return Promise.all(
+    localPeople.slice(0, 3).map(async (person) => {
+      const memories = getMemoriesByPersonId(person.id);
+      const memory = memories[0] || null;
 
-  for (const person of localPeople.slice(0, 3)) {
-    const memories = getMemoriesByPersonId(person.id);
-    const memory = memories[0] || null;
+      const scoredEvents = localEvents
+        .map((event) => ({ event, score: scoreEventForPerson(event, person, memory, city) }))
+        .sort((a, b) => b.score - a.score);
+      const bestEvent = scoredEvents[0]?.event || null;
 
-    // Best event for this person in the city
-    const scoredEvents = localEvents
-      .map((event) => ({
-        event,
-        score: scoreEventForPerson(event, person, memory, city),
-      }))
-      .sort((a, b) => b.score - a.score);
-
-    const bestEvent = scoredEvents[0]?.event || null;
-
-    const message = await generateMessage({
-      person,
-      memory,
-      event: bestEvent || { title: "catch up", city },
-      mode: "visit_mode",
-    });
-
-    cards.push(buildCard({
-      mode: "visit_mode",
-      person,
-      memory,
-      event: bestEvent,
-      message,
-      intent: `I'm going to ${city}. Who should I reconnect with?`,
-      confidence: bestEvent ? Math.min(scoredEvents[0].score / 100, 0.99) : 0.7,
-    }));
-  }
-
-  return cards;
+      const { message, why } = await generateMessage({
+        person, memory, event: bestEvent || { title: "catch up", city }, mode: "visit_mode",
+      });
+      return buildCard({
+        mode: "visit_mode", person, memory, event: bestEvent, message, why,
+        intent: `I'm going to ${city}. Who should I reconnect with?`,
+        confidence: bestEvent ? Math.min(scoredEvents[0].score / 100, 0.99) : 0.7,
+      });
+    })
+  );
 }
 
 // ─── Card Builder ─────────────────────────────────────────────────────────────
 
-function buildCard({ mode, person, memory, event, message, intent, confidence }) {
+function buildCard({ mode, person, memory, event, message, why, intent, confidence }) {
   return {
     card_id: `card_${uuidv4().slice(0, 8)}`,
     mode,
@@ -286,8 +236,8 @@ function buildCard({ mode, person, memory, event, message, intent, confidence })
           vibe_tags: event.vibe_tags || [],
         }
       : null,
-    why_this_person: buildWhyPerson(person, memory),
-    why_this_event: event ? buildWhyEvent(person, memory, event) : null,
+    why_this_person: why || buildWhyPerson(person, memory),
+    why_this_event: why ? null : (event ? buildWhyEvent(person, memory, event) : null),
     memory_used: memory?.raw_note || memory?.extracted?.summary || "",
     suggested_message: message,
     confidence: parseFloat(confidence.toFixed(2)),
