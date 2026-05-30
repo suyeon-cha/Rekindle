@@ -90,28 +90,27 @@ async function handleEventFirst({ intent, user_id }) {
   const people = getPeople();
   const events = getPublicEvents();
 
-  // Filter events matching intent topics
+  // Filter events matching intent topics — no fallback, no match means no results
   const matchingEvents = events.filter((e) =>
     e.topics?.some((t) => intentTopics.includes(t.toLowerCase()))
   );
 
-  const eventsToUse = matchingEvents.length > 0 ? matchingEvents : events.slice(0, 3);
+  if (matchingEvents.length === 0) return [];
 
   const seenPairs = new Set();
   const pairs = [];
 
-  for (const event of eventsToUse.slice(0, 5)) {
+  for (const event of matchingEvents.slice(0, 5)) {
     const scoredPeople = people
       .map((person) => {
         const memories = getMemoriesByPersonId(person.id);
         const memory = memories[0] || null;
-        return {
-          person, memory,
-          score: scorePersonForIntent(person, memory, intentTopics) +
-                 scoreEventForPerson(event, person, memory),
-        };
+        const intentScore = scorePersonForIntent(person, memory, intentTopics);
+        const eventScore = scoreEventForPerson(event, person, memory);
+        return { person, memory, intentScore, eventScore, score: intentScore + eventScore };
       })
-      .filter(({ score }) => score >= 40)
+      // Require the person to actually match the intent — not just the event
+      .filter(({ intentScore }) => intentScore >= 40)
       .sort((a, b) => b.score - a.score);
 
     for (const { person, memory, score } of scoredPeople) {
@@ -122,13 +121,16 @@ async function handleEventFirst({ intent, user_id }) {
     }
   }
 
+  if (pairs.length === 0) return [];
+
+  // Max possible combined score: intentScore(100) + eventScore(110) = 210
   return Promise.all(
     pairs.map(async ({ event, person, memory, score }) => {
       const { message, why } = await generateMessage({ person, memory, event, mode: "event_first" });
       return buildCard({
         mode: "event_first", person, memory, event, message, why,
         intent: intent || "I want to go to an event",
-        confidence: Math.min(score / 100, 0.99),
+        confidence: Math.min(score / 210, 0.95),
       });
     })
   );

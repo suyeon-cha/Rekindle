@@ -111,10 +111,16 @@ async function extractTopicsFromIntent(intent = "") {
         messages: [
           {
             role: "user",
-            content: `Extract the core interest/activity topics from this intent: "${intent}"
+            content: `Extract the social activity and hobby topics from this event search: "${intent}"
+
+These topics will be used to match real-world social events (meetups, classes, concerts, markets, sports, etc.) and people's personal hobbies and interests.
+
+Rules:
+- Only include topics that map to a real-world activity or hobby someone would do in person
+- Do NOT extract abstract, professional, or financial concepts (e.g. "finance", "investing", "markets" as in stock markets, "career", "interview")
+- If the intent has no clear social activity or hobby, return an empty array []
 
 Return a JSON array of short lowercase topic strings (e.g. ["cooking", "food", "jazz"]).
-Include synonyms and related topics that someone with this interest would also care about.
 Return ONLY the JSON array, nothing else.`,
           },
         ],
