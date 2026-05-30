@@ -75,3 +75,59 @@ export interface OpportunityCard {
 }
 
 export type Mode = "person_first" | "event_first" | "calendar_trigger" | "visit_mode";
+
+export interface UICard {
+  id: string;
+  mode: string;
+  personId: string;
+  personName: string;
+  personColor: string;
+  platform: string;
+  timer: string;
+  event: string;
+  eventUrl?: string;
+  whyPerson: string;
+  whyEvent?: string | null;
+  memory: string;
+  dataUsed: string[];
+  confidence: number;
+  drafts: { warm: string; casual: string; brief: string };
+  status: string;
+}
+
+export type Screen =
+  | "home" | "add" | "people" | "personDetail"
+  | "results" | "message" | "pipeline" | "you" | "settings";
+
+export interface SearchParams {
+  mode: Mode;
+  intent?: string;
+  personId?: string;
+  city?: string;
+  calendarEvent?: object;
+}
+
+export interface AppCtx {
+  showScreen: (s: Screen) => void;
+  back: () => void;
+  toast: (msg: string) => void;
+  people: Person[];
+  addPerson: (p: Person) => void;
+  noticedCards: UICard[];
+  noticedLoading: boolean;
+  resultsCards: UICard[];
+  resultsLoading: boolean;
+  resultsTitle: string;
+  resultsMode: Mode | null;
+  startSearch: (params: SearchParams) => void;
+  currentCard: UICard | null;
+  openMessage: (card: UICard) => void;
+  doMarkSent: (cardId: string, personId: string, platform: string, message: string) => Promise<void>;
+  pipeline: Record<string, { card: UICard; status: string }>;
+  addToPipeline: (card: UICard) => void;
+  advancePipeline: (id: string) => void;
+  detailPersonId: string | null;
+  openPersonDetail: (id: string) => void;
+  showFeedback: () => void;
+  restartOnboarding: () => void;
+}

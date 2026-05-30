@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rekindle-backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "cwd": "/Users/suyeoncha/Documents/Projects/Rekindle/backend",
+      "port": 3001
+    },
+    {
+      "name": "rekindle-frontend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "/Users/suyeoncha/Documents/Projects/Rekindle/rekindle-app",
+      "port": 3000
+    }
+  ]
+}
